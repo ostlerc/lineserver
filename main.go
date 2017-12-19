@@ -17,6 +17,7 @@ const (
 )
 
 var (
+	addr = flag.String("addr", "localhost:10497", "server listen address")
 	file = flag.String("f", "test.txt", "file name to open")
 )
 
@@ -51,27 +52,33 @@ func ParseRequest(msg string) (*request, error) {
 	}
 }
 
-func serveClient(conn net.Conn, file string) {
+func serveClient(l *lineMeta, conn net.Conn, file string) {
 	f, err := os.Open(file)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
-	l, err := NewLineMeta(f)
-	if err != nil {
-		panic(err)
-	}
+
 	r := bufio.NewReader(conn)
+
+	OK := []byte("OK\r\n")
+	ERR := []byte("ERR\r\n")
 
 	for {
 		line, err := r.ReadSlice('\n')
 		if err != nil {
-			panic(err)
+			fmt.Printf("Error reading slice %v\n", err)
+			conn.Write(ERR)
+			err = conn.Close()
+			if err != nil {
+				fmt.Printf("Err closing: %s\n", err)
+			}
+			return
 		}
 		req, err := ParseRequest(strings.TrimSpace(string(line)))
-		fmt.Printf("Got line '%s' %v\n", line, req)
 		if err != nil {
 			fmt.Printf("Err: %s\n", err)
+			conn.Write(ERR)
 			continue
 		}
 		switch req.method {
@@ -84,25 +91,30 @@ func serveClient(conn net.Conn, file string) {
 		case SHUTDOWN:
 			os.Exit(0)
 		case GET:
-			buf, err := l.Line(req.n, f)
+			buf, err := l.Line(req.n-1, f)
 			if err != nil {
-				panic(err)
+				conn.Write(ERR)
+			} else {
+				conn.Write(OK)
+				conn.Write(append(buf, '\n'))
 			}
-			conn.Write(append(buf, '\n'))
-			fmt.Printf("Got %s\n", buf)
 		}
 	}
 }
 
 func main() {
 	flag.Parse()
-	f, err := os.Open(*file) // just test it opens before starting
+	f, err := os.Open(*file) // test file opens fine and also populate meta data
+	if err != nil {
+		panic(err)
+	}
+	meta, err := NewLineMeta(f)
 	if err != nil {
 		panic(err)
 	}
 	f.Close()
 
-	l, err := net.Listen("tcp", "localhost:10497")
+	l, err := net.Listen("tcp", *addr)
 	if err != nil {
 		panic(err)
 	}
@@ -113,6 +125,6 @@ func main() {
 			panic(err)
 		}
 
-		go serveClient(conn, *file)
+		go serveClient(meta, conn, *file)
 	}
 }
