@@ -9,11 +9,6 @@ import (
 	"os"
 )
 
-type line struct {
-	offset int64
-	length int
-}
-
 type lineMeta struct {
 	f *os.File
 }
