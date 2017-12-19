@@ -49,7 +49,7 @@ func NewLineMeta(r io.Reader) (*lineMeta, error) {
 	buf := make([]byte, 0, 64*1024)
 	s.Buffer(buf, math.MaxInt32)
 
-	f, err := ioutil.TempFile(".", "lineserver")
+	f, err := ioutil.TempFile("", "lineserver")
 	if err != nil {
 		return nil, err
 	}
