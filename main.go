@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 )
 
@@ -89,10 +90,12 @@ func serveClient(l *lineMeta, conn net.Conn, file string) {
 			}
 			return
 		case SHUTDOWN:
+			l.Close()
 			os.Exit(0)
 		case GET:
 			buf, err := l.Line(req.n-1, f)
 			if err != nil {
+				fmt.Println("Err", err)
 				conn.Write(ERR)
 			} else {
 				conn.Write(OK)
@@ -119,6 +122,14 @@ func main() {
 		panic(err)
 	}
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		meta.Close()
+		os.Exit(0)
+	}()
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -127,4 +138,5 @@ func main() {
 
 		go serveClient(meta, conn, *file)
 	}
+
 }
